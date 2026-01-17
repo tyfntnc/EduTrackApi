@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace EduTrackApi.Infrastructure;
+namespace EduTrackApi.Application.Common;
 
 public static class DependencyInjection
 {
@@ -18,11 +18,11 @@ public static class DependencyInjection
         {
             options.UseNpgsql(connectionString);
             //options.UseSqlServer(connectionString);
-
         });
 
-        services.AddScoped<IEduTrackDbContext>(sp => sp.GetRequiredService<EduTrackDbContext>());
-        
+        // Fully qualify the interface to avoid ambiguity
+        services.AddScoped(sp => (IEduTrackDbContext)sp.GetRequiredService<EduTrackDbContext>());
+
         return services;
     }
 }

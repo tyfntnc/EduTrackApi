@@ -8,10 +8,12 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.2" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.2" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\EduTrackApi.Domain\EduTrackApi.Domain.csproj" />
+    <ProjectReference Include="..\EduTrackApi.Infrastructure\EduTrackApi.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

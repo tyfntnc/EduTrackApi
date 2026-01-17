@@ -1,30 +1,38 @@
-using EduTrackApi.Application;
+﻿using EduTrackApi.Application;
 using EduTrackApi.Infrastructure;
-using EduTrackApi.Infrastructure.Persistence;
-using Microsoft.EntityFrameworkCore;
-using Npgsql.EntityFrameworkCore.PostgreSQL;
 
-var builder = WebApplication.CreateBuilder(args);
-
-// Add services to the container.
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-
-// Application + Infrastructure
-builder.Services.AddApplication();
-builder.Services.AddInfrastructure(builder.Configuration);
-
-var app = builder.Build();
-
-// Apply migrations automatically (opsiyonel)
-using (var scope = app.Services.CreateScope())
+public partial class Program
 {
-    var db = scope.ServiceProvider.GetRequiredService<EduTrackDbContext>();
-    db.Database.Migrate();
+    private static void Main(string[] args)
+    {
+        var builder = WebApplication.CreateBuilder(args);
+
+        // Add services to the container.
+        builder.Services.AddControllers();
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen(); // Swagger servis kaydı
+
+        // Application + Infrastructure
+        builder.Services.AddApplication();
+        builder.Services.AddInfrastructure(builder.Configuration);
+
+        var app = builder.Build();
+
+        // Swagger middleware (UI dahil)
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI(options =>
+            {
+                options.SwaggerEndpoint("/swagger/v1/swagger.json", "EduTrack API V1");
+                // options.RoutePrefix = string.Empty; // İstersen root'tan açmak için
+            });
+        }
+
+        app.UseHttpsRedirection();
+
+        app.MapControllers();
+
+        app.Run();
+    }
 }
-
-app.UseHttpsRedirection();
-
-app.MapControllers();
-
-app.Run();
