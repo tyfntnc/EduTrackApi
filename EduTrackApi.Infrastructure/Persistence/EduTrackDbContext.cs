@@ -366,7 +366,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 Avatar = "https://picsum.photos/seed/admin/200",
                 PhoneNumber = "0555 111 22 33",
                 Gender = "Kadın",
-                BirthDate = new DateTime(1990, 5, 15),
+                BirthDate = new DateTime(1990, 5, 15, 0, 0, 0, DateTimeKind.Utc),
                 Address = "İstanbul, Türkiye",
                 RoleId = 1
             },
@@ -407,7 +407,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 SchoolId = "school-a",
                 Avatar = "https://picsum.photos/seed/u2/200",
                 PhoneNumber = "0505 987 65 43",
-                BirthDate = new DateTime(2008, 10, 12),
+                BirthDate = new DateTime(2008, 10, 12, 0, 0, 0, DateTimeKind.Utc),
                 Gender = "Erkek",
                 Address = "Ankara, Türkiye",
                 RoleId = 5
@@ -458,13 +458,14 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
         );
 
         // UserBadges (MOCK_USERS badges)
+        var seedDate = new DateTime(2024, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         modelBuilder.Entity<UserBadge>().HasData(
-            new UserBadge { UserId = "u2", BadgeId = "bg1", AwardedAt = DateTime.UtcNow },
-            new UserBadge { UserId = "u2", BadgeId = "bg2", AwardedAt = DateTime.UtcNow },
-            new UserBadge { UserId = "u2", BadgeId = "bg3", AwardedAt = DateTime.UtcNow },
-            new UserBadge { UserId = "u2", BadgeId = "bg4", AwardedAt = DateTime.UtcNow },
-            new UserBadge { UserId = "u2", BadgeId = "bg5", AwardedAt = DateTime.UtcNow },
-            new UserBadge { UserId = "u9", BadgeId = "bg1", AwardedAt = DateTime.UtcNow }
+            new UserBadge { UserId = "u2", BadgeId = "bg1", AwardedAt = seedDate },
+            new UserBadge { UserId = "u2", BadgeId = "bg2", AwardedAt = seedDate },
+            new UserBadge { UserId = "u2", BadgeId = "bg3", AwardedAt = seedDate },
+            new UserBadge { UserId = "u2", BadgeId = "bg4", AwardedAt = seedDate },
+            new UserBadge { UserId = "u2", BadgeId = "bg5", AwardedAt = seedDate },
+            new UserBadge { UserId = "u9", BadgeId = "bg1", AwardedAt = seedDate }
         );
 
         // Courses (MOCK_COURSES) – schedule ve students ayrı tablolarda
@@ -520,7 +521,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 StudentId = "u2",
                 CourseId = "crs1",
                 Amount = 1500m,
-                DueDate = new DateTime(2024, 5, 1),
+                DueDate = new DateTime(2024, 5, 1, 0, 0, 0, DateTimeKind.Utc),
                 StatusId = 3 // OVERDUE
             },
             new Payment
@@ -529,9 +530,9 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 StudentId = "u2",
                 CourseId = "crs2",
                 Amount = 1200m,
-                DueDate = new DateTime(2024, 6, 15),
+                DueDate = new DateTime(2024, 6, 15, 0, 0, 0, DateTimeKind.Utc),
                 StatusId = 2, // PAID
-                PaidAt = new DateTime(2024, 6, 10),
+                PaidAt = new DateTime(2024, 6, 10, 0, 0, 0, DateTimeKind.Utc),
                 Method = "Credit Card"
             },
             new Payment
@@ -540,7 +541,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 StudentId = "u2",
                 CourseId = "crs1",
                 Amount = 1500m,
-                DueDate = new DateTime(2024, 7, 1),
+                DueDate = new DateTime(2024, 7, 1, 0, 0, 0, DateTimeKind.Utc),
                 StatusId = 1, // PENDING
                 Method = "Manual"
             },
@@ -550,9 +551,9 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 StudentId = "u9",
                 CourseId = "crs1",
                 Amount = 1500m,
-                DueDate = new DateTime(2024, 6, 1),
+                DueDate = new DateTime(2024, 6, 1, 0, 0, 0, DateTimeKind.Utc),
                 StatusId = 2, // PAID
-                PaidAt = new DateTime(2024, 5, 28),
+                PaidAt = new DateTime(2024, 5, 28, 0, 0, 0, DateTimeKind.Utc),
                 Method = "Manual"
             }
         );
