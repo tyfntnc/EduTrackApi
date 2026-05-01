@@ -1,9 +1,11 @@
 using EduTrackApi.Application.Common.Models;
 using EduTrackApi.Application.IndividualLessons.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EduTrackApi.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("v1/individual-lessons")]
 public sealed class IndividualLessonsController : ControllerBase

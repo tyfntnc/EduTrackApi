@@ -1,37 +1,40 @@
 using EduTrackApi.Application.Branches.Models;
+using EduTrackApi.Application.Common.Interfaces;
 using EduTrackApi.Application.Common.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace EduTrackApi.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("v1")]
 public sealed class BranchesController : ControllerBase
 {
-    [HttpGet("branches")]
-    public IActionResult GetBranches()
+    private readonly IEduTrackDbContext _db;
+
+    public BranchesController(IEduTrackDbContext db)
     {
-        var branches = new List<BranchDto>
-        {
-            new() { Id = "b1", Name = "Football" },
-            new() { Id = "b2", Name = "Basketball" },
-            new() { Id = "b3", Name = "Mathematics" },
-            new() { Id = "b4", Name = "Volleyball" },
-            new() { Id = "b5", Name = "Swimming" }
-        };
+        _db = db;
+    }
+
+    [HttpGet("branches")]
+    public async Task<IActionResult> GetBranches()
+    {
+        var branches = await _db.Branches
+            .Select(b => new BranchDto { Id = b.Id, Name = b.Name })
+            .ToListAsync();
         return Ok(ApiResponse<List<BranchDto>>.Ok(branches));
     }
 
     [HttpGet("categories")]
-    public IActionResult GetCategories()
+    public async Task<IActionResult> GetCategories()
     {
-        var categories = new List<CategoryDto>
-        {
-            new() { Id = "c1", Name = "U19" },
-            new() { Id = "c2", Name = "U15" },
-            new() { Id = "c3", Name = "Private Lesson" },
-            new() { Id = "c4", Name = "Group" }
-        };
+        var categories = await _db.Categories
+            .Select(c => new CategoryDto { Id = c.Id, Name = c.Name })
+            .ToListAsync();
         return Ok(ApiResponse<List<CategoryDto>>.Ok(categories));
     }
 }
+

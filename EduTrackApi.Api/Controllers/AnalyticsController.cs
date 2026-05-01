@@ -1,9 +1,11 @@
 using EduTrackApi.Application.Analytics.Models;
 using EduTrackApi.Application.Common.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EduTrackApi.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("v1/analytics")]
 public sealed class AnalyticsController : ControllerBase

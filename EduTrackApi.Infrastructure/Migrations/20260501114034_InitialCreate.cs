@@ -158,12 +158,15 @@ namespace EduTrackApi.Infrastructure.Migrations
                     school_id = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
                     name = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                     email = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
+                    password_hash = table.Column<string>(type: "text", nullable: true),
                     avatar = table.Column<string>(type: "text", nullable: true),
                     bio = table.Column<string>(type: "text", nullable: true),
                     phone_number = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
                     gender = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: true),
                     birth_date = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    address = table.Column<string>(type: "text", nullable: true)
+                    address = table.Column<string>(type: "text", nullable: true),
+                    refresh_token = table.Column<string>(type: "character varying(500)", maxLength: 500, nullable: true),
+                    refresh_token_expiry = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -476,18 +479,18 @@ namespace EduTrackApi.Infrastructure.Migrations
             migrationBuilder.InsertData(
                 schema: "edutrack",
                 table: "users",
-                columns: new[] { "id", "address", "avatar", "bio", "birth_date", "email", "gender", "name", "phone_number", "role_id", "school_id" },
+                columns: new[] { "id", "address", "avatar", "bio", "birth_date", "email", "gender", "name", "password_hash", "phone_number", "refresh_token", "refresh_token_expiry", "role_id", "school_id" },
                 values: new object[,]
                 {
-                    { "admin", "İstanbul, Türkiye", "https://picsum.photos/seed/admin/200", null, new DateTime(1990, 5, 15, 0, 0, 0, 0, DateTimeKind.Utc), "admin@edutrack.com", "Kadın", "Zeynep Sistem", "0555 111 22 33", (short)1, null },
-                    { "u1", null, "https://picsum.photos/seed/u1/200", "15 yıllık profesyonel futbol antrenörlüğü tecrübesi.", null, "ahmet@okul-a.com", null, "Ahmet Yılmaz", "0532 123 45 67", (short)3, "school-a" },
-                    { "u2", "Ankara, Türkiye", "https://picsum.photos/seed/u2/200", null, new DateTime(2008, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc), "mehmet@okul-a.com", "Erkek", "Mehmet Kaya", "0505 987 65 43", (short)5, "school-a" },
-                    { "u3", null, "https://picsum.photos/seed/u3/200", null, null, "ayse@veli.com", null, "Ayşe Demir", null, (short)4, null },
-                    { "u4", null, "https://picsum.photos/seed/u4/200", null, null, "canan@okul-a.com", null, "Canan Sert", "0555 444 55 66", (short)2, "school-a" },
-                    { "u5", null, "https://picsum.photos/seed/u5/200", null, null, "bulent@okul-b.com", null, "Bülent Arın", null, (short)2, "school-b" },
-                    { "u7", null, "https://picsum.photos/seed/u7/200", "Matematik Olimpiyatları koordinatörü.", null, "fatma@okul-a.com", null, "Fatma Şahin", null, (short)3, "school-a" },
-                    { "u8", null, "https://picsum.photos/seed/u8/200", null, null, "murat@okul-a.com", null, "Murat Can", null, (short)3, "school-a" },
-                    { "u9", null, "https://picsum.photos/seed/u9/200", null, null, "ali@okul-a.com", null, "Ali Vural", null, (short)5, "school-a" }
+                    { "admin", "İstanbul, Türkiye", "https://picsum.photos/seed/admin/200", null, new DateTime(1990, 5, 15, 0, 0, 0, 0, DateTimeKind.Utc), "admin@edutrack.com", "Kadın", "Zeynep Sistem", "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy", "0555 111 22 33", null, null, (short)1, null },
+                    { "u1", null, "https://picsum.photos/seed/u1/200", "15 yıllık profesyonel futbol antrenörlüğü tecrübesi.", null, "ahmet@okul-a.com", null, "Ahmet Yılmaz", "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy", "0532 123 45 67", null, null, (short)3, "school-a" },
+                    { "u2", "Ankara, Türkiye", "https://picsum.photos/seed/u2/200", null, new DateTime(2008, 10, 12, 0, 0, 0, 0, DateTimeKind.Utc), "mehmet@okul-a.com", "Erkek", "Mehmet Kaya", "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy", "0505 987 65 43", null, null, (short)5, "school-a" },
+                    { "u3", null, "https://picsum.photos/seed/u3/200", null, null, "ayse@veli.com", null, "Ayşe Demir", "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy", null, null, null, (short)4, null },
+                    { "u4", null, "https://picsum.photos/seed/u4/200", null, null, "canan@okul-a.com", null, "Canan Sert", "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy", "0555 444 55 66", null, null, (short)2, "school-a" },
+                    { "u5", null, "https://picsum.photos/seed/u5/200", null, null, "bulent@okul-b.com", null, "Bülent Arın", "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy", null, null, null, (short)2, "school-b" },
+                    { "u7", null, "https://picsum.photos/seed/u7/200", "Matematik Olimpiyatları koordinatörü.", null, "fatma@okul-a.com", null, "Fatma Şahin", "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy", null, null, null, (short)3, "school-a" },
+                    { "u8", null, "https://picsum.photos/seed/u8/200", null, null, "murat@okul-a.com", null, "Murat Can", "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy", null, null, null, (short)3, "school-a" },
+                    { "u9", null, "https://picsum.photos/seed/u9/200", null, null, "ali@okul-a.com", null, "Ali Vural", "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy", null, null, null, (short)5, "school-a" }
                 });
 
             migrationBuilder.InsertData(

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace EduTrackApi.Infrastructure.Migrations
 {
     [DbContext(typeof(EduTrackDbContext))]
-    [Migration("20260430213832_InitialCreate")]
+    [Migration("20260501114034_InitialCreate")]
     partial class InitialCreate
     {
         /// <inheritdoc />
@@ -757,10 +757,23 @@ namespace EduTrackApi.Infrastructure.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("name");
 
+                    b.Property<string>("PasswordHash")
+                        .HasColumnType("text")
+                        .HasColumnName("password_hash");
+
                     b.Property<string>("PhoneNumber")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("phone_number");
+
+                    b.Property<string>("RefreshToken")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("refresh_token");
+
+                    b.Property<DateTime?>("RefreshTokenExpiry")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("refresh_token_expiry");
 
                     b.Property<short>("RoleId")
                         .HasColumnType("smallint")
@@ -792,6 +805,7 @@ namespace EduTrackApi.Infrastructure.Migrations
                             Email = "admin@edutrack.com",
                             Gender = "Kadın",
                             Name = "Zeynep Sistem",
+                            PasswordHash = "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy",
                             PhoneNumber = "0555 111 22 33",
                             RoleId = (short)1
                         },
@@ -801,6 +815,7 @@ namespace EduTrackApi.Infrastructure.Migrations
                             Avatar = "https://picsum.photos/seed/u4/200",
                             Email = "canan@okul-a.com",
                             Name = "Canan Sert",
+                            PasswordHash = "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy",
                             PhoneNumber = "0555 444 55 66",
                             RoleId = (short)2,
                             SchoolId = "school-a"
@@ -812,6 +827,7 @@ namespace EduTrackApi.Infrastructure.Migrations
                             Bio = "15 yıllık profesyonel futbol antrenörlüğü tecrübesi.",
                             Email = "ahmet@okul-a.com",
                             Name = "Ahmet Yılmaz",
+                            PasswordHash = "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy",
                             PhoneNumber = "0532 123 45 67",
                             RoleId = (short)3,
                             SchoolId = "school-a"
@@ -822,6 +838,7 @@ namespace EduTrackApi.Infrastructure.Migrations
                             Avatar = "https://picsum.photos/seed/u3/200",
                             Email = "ayse@veli.com",
                             Name = "Ayşe Demir",
+                            PasswordHash = "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy",
                             RoleId = (short)4
                         },
                         new
@@ -833,6 +850,7 @@ namespace EduTrackApi.Infrastructure.Migrations
                             Email = "mehmet@okul-a.com",
                             Gender = "Erkek",
                             Name = "Mehmet Kaya",
+                            PasswordHash = "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy",
                             PhoneNumber = "0505 987 65 43",
                             RoleId = (short)5,
                             SchoolId = "school-a"
@@ -843,6 +861,7 @@ namespace EduTrackApi.Infrastructure.Migrations
                             Avatar = "https://picsum.photos/seed/u9/200",
                             Email = "ali@okul-a.com",
                             Name = "Ali Vural",
+                            PasswordHash = "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy",
                             RoleId = (short)5,
                             SchoolId = "school-a"
                         },
@@ -852,6 +871,7 @@ namespace EduTrackApi.Infrastructure.Migrations
                             Avatar = "https://picsum.photos/seed/u5/200",
                             Email = "bulent@okul-b.com",
                             Name = "Bülent Arın",
+                            PasswordHash = "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy",
                             RoleId = (short)2,
                             SchoolId = "school-b"
                         },
@@ -862,6 +882,7 @@ namespace EduTrackApi.Infrastructure.Migrations
                             Bio = "Matematik Olimpiyatları koordinatörü.",
                             Email = "fatma@okul-a.com",
                             Name = "Fatma Şahin",
+                            PasswordHash = "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy",
                             RoleId = (short)3,
                             SchoolId = "school-a"
                         },
@@ -871,6 +892,7 @@ namespace EduTrackApi.Infrastructure.Migrations
                             Avatar = "https://picsum.photos/seed/u8/200",
                             Email = "murat@okul-a.com",
                             Name = "Murat Can",
+                            PasswordHash = "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy",
                             RoleId = (short)3,
                             SchoolId = "school-a"
                         });

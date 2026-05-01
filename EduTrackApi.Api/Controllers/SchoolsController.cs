@@ -1,61 +1,94 @@
+using EduTrackApi.Application.Common.Interfaces;
 using EduTrackApi.Application.Common.Models;
 using EduTrackApi.Application.Schools.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace EduTrackApi.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("v1/schools")]
 public sealed class SchoolsController : ControllerBase
 {
-    private static readonly List<SchoolDto> MockSchools =
-    [
-        new() { Id = "school-a", Name = "North Star College", Location = "Istanbul, Besiktas", StudentCount = 120, CourseCount = 8, ImageUrl = "https://picsum.photos/seed/school-a/400", CreatedAt = "2024-01-01T00:00:00Z" },
-        new() { Id = "school-b", Name = "South Light Sports Academy", Location = "Ankara, Cankaya", StudentCount = 85, CourseCount = 5, ImageUrl = "https://picsum.photos/seed/school-b/400", CreatedAt = "2024-02-15T00:00:00Z" }
-    ];
+    private readonly IEduTrackDbContext _db;
+
+    public SchoolsController(IEduTrackDbContext db)
+    {
+        _db = db;
+    }
 
     [HttpGet]
-    public IActionResult GetAll()
+    public async Task<IActionResult> GetAll()
     {
-        return Ok(ApiResponse<List<SchoolDto>>.Ok(MockSchools, new MetaData { Page = 1, PageSize = 20, Total = MockSchools.Count }));
+        var schools = await _db.Schools
+            .Select(s => new SchoolDto
+            {
+                Id = s.Id,
+                Name = s.Name,
+                StudentCount = s.Users.Count(u => u.RoleId == 5),
+                CourseCount = s.Courses.Count
+            })
+            .ToListAsync();
+        return Ok(ApiResponse<List<SchoolDto>>.Ok(schools, new MetaData { Page = 1, PageSize = 20, Total = schools.Count }));
     }
 
     [HttpGet("{schoolId}")]
-    public IActionResult GetById(string schoolId)
+    public async Task<IActionResult> GetById(string schoolId)
     {
-        var school = MockSchools.FirstOrDefault(s => s.Id == schoolId);
+        var school = await _db.Schools
+            .Select(s => new SchoolDto
+            {
+                Id = s.Id,
+                Name = s.Name,
+                StudentCount = s.Users.Count(u => u.RoleId == 5),
+                CourseCount = s.Courses.Count
+            })
+            .FirstOrDefaultAsync(s => s.Id == schoolId);
+
         if (school is null) return NotFound(ApiResponse.Fail("SCHOOL_NOT_FOUND", "School not found."));
         return Ok(ApiResponse<SchoolDto>.Ok(school));
     }
 
     [HttpPost]
-    public IActionResult Create([FromBody] CreateSchoolRequest request)
+    public async Task<IActionResult> Create([FromBody] CreateSchoolRequest request)
     {
-        var newSchool = new SchoolDto
+        var school = new Domain.Entities.School
         {
-            Id = $"school-{Guid.NewGuid():N}",
-            Name = request.Name,
-            Location = request.Location,
-            StudentCount = 0,
-            CourseCount = 0,
-            ImageUrl = request.ImageUrl,
-            CreatedAt = DateTime.UtcNow.ToString("o")
+            Id = Guid.NewGuid().ToString("N")[..12],
+            Name = request.Name
         };
-        return StatusCode(201, ApiResponse<SchoolDto>.Ok(newSchool));
+        _db.Schools.Add(school);
+        await _db.SaveChangesAsync();
+
+        return StatusCode(201, ApiResponse<SchoolDto>.Ok(new SchoolDto
+        {
+            Id = school.Id, Name = school.Name,
+            StudentCount = 0, CourseCount = 0, CreatedAt = DateTime.UtcNow.ToString("o")
+        }));
     }
 
     [HttpPut("{schoolId}")]
-    public IActionResult Update(string schoolId, [FromBody] UpdateSchoolRequest request)
+    public async Task<IActionResult> Update(string schoolId, [FromBody] UpdateSchoolRequest request)
     {
-        var school = MockSchools.FirstOrDefault(s => s.Id == schoolId);
+        var school = await _db.Schools.FindAsync(schoolId);
         if (school is null) return NotFound(ApiResponse.Fail("SCHOOL_NOT_FOUND", "School not found."));
-        var updated = new SchoolDto { Id = schoolId, Name = request.Name, Location = request.Location, StudentCount = school.StudentCount, CourseCount = school.CourseCount, ImageUrl = request.ImageUrl, CreatedAt = school.CreatedAt };
-        return Ok(ApiResponse<SchoolDto>.Ok(updated));
+
+        school.Name = request.Name;
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse<SchoolDto>.Ok(new SchoolDto { Id = school.Id, Name = school.Name }));
     }
 
     [HttpDelete("{schoolId}")]
-    public IActionResult Delete(string schoolId)
+    public async Task<IActionResult> Delete(string schoolId)
     {
+        var school = await _db.Schools.FindAsync(schoolId);
+        if (school is null) return NotFound(ApiResponse.Fail("SCHOOL_NOT_FOUND", "School not found."));
+
+        _db.Schools.Remove(school);
+        await _db.SaveChangesAsync();
         return Ok(ApiResponse.Ok(new { message = "School and all related data deleted." }));
     }
 }
+

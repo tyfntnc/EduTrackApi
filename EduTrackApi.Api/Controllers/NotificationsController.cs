@@ -1,51 +1,101 @@
+using EduTrackApi.Application.Common.Interfaces;
 using EduTrackApi.Application.Common.Models;
 using EduTrackApi.Application.Notifications.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace EduTrackApi.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("v1/notifications")]
 public sealed class NotificationsController : ControllerBase
 {
-    private static readonly List<NotificationDto> MockNotifications =
-    [
-        new() { Id = "n3", Type = "School Announcement", Title = "Weekly Schedule Update", Message = "Training hours have been rearranged.", Timestamp = DateTime.UtcNow.ToString("o"), IsRead = false, SenderRole = "School Admin" },
-        new() { Id = "n1", Type = "Class Reminder", Title = "Class Starting", Message = "U19 Football Elite Group class starts in 15 minutes.", Timestamp = DateTime.UtcNow.AddMinutes(-30).ToString("o"), IsRead = false, SenderRole = null },
-        new() { Id = "n2", Type = "Attendance Update", Title = "Attendance Recorded", Message = "Mehmet Kaya was marked as \"Present\" in today's mathematics class.", Timestamp = DateTime.UtcNow.AddHours(-1).ToString("o"), IsRead = true, SenderRole = null }
-    ];
+    private readonly IEduTrackDbContext _db;
+
+    public NotificationsController(IEduTrackDbContext db)
+    {
+        _db = db;
+    }
 
     [HttpGet]
-    public IActionResult GetAll([FromQuery] bool? isRead, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    public async Task<IActionResult> GetAll([FromQuery] bool? isRead, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-        var notifications = MockNotifications.AsEnumerable();
+        var query = _db.Notifications
+            .AsNoTracking()
+            .AsQueryable();
+
         if (isRead.HasValue)
-            notifications = notifications.Where(n => n.IsRead == isRead.Value);
-        var list = notifications.ToList();
-        return Ok(ApiResponse<List<NotificationDto>>.Ok(list, new MetaData { Page = page, PageSize = pageSize, Total = list.Count, UnreadCount = MockNotifications.Count(n => !n.IsRead) }));
+            query = query.Where(n => n.IsRead == isRead.Value);
+
+        var total = await query.CountAsync();
+        var unread = await _db.Notifications.CountAsync(n => !n.IsRead);
+
+        var notifications = await query
+            .OrderByDescending(n => n.Timestamp)
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(n => new NotificationDto
+            {
+                Id = n.Id,
+                Type = n.Type != null ? n.Type.Name : "",
+                Title = n.Title,
+                Message = n.Message ?? "",
+                Timestamp = n.Timestamp.ToString("o"),
+                IsRead = n.IsRead,
+                SenderRole = n.SenderRole != null ? n.SenderRole.Name : null
+            })
+            .ToListAsync();
+
+        return Ok(ApiResponse<List<NotificationDto>>.Ok(notifications,
+            new MetaData { Page = page, PageSize = pageSize, Total = total, UnreadCount = unread }));
     }
 
     [HttpPatch("{notificationId}/read")]
-    public IActionResult MarkAsRead(string notificationId)
+    public async Task<IActionResult> MarkAsRead(string notificationId)
     {
+        var notification = await _db.Notifications.FindAsync(notificationId);
+        if (notification is null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Notification not found."));
+
+        notification.IsRead = true;
+        await _db.SaveChangesAsync();
         return Ok(ApiResponse.Ok(new { id = notificationId, isRead = true }));
     }
 
     [HttpPatch("read-all")]
-    public IActionResult MarkAllAsRead()
+    public async Task<IActionResult> MarkAllAsRead()
     {
-        return Ok(ApiResponse.Ok(new { updatedCount = MockNotifications.Count }));
+        var unread = await _db.Notifications.Where(n => !n.IsRead).ToListAsync();
+        foreach (var n in unread) n.IsRead = true;
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse.Ok(new { updatedCount = unread.Count }));
     }
 
     [HttpPost("send")]
-    public IActionResult Send([FromBody] SendNotificationRequest request)
+    public async Task<IActionResult> Send([FromBody] SendNotificationRequest request)
     {
-        return StatusCode(201, ApiResponse.Ok(new { sentCount = 45, message = "Announcement sent to 45 users." }));
+        var notifType = await _db.NotificationTypes.FirstOrDefaultAsync(t => t.Name == request.Type || t.Code == request.Type);
+
+        var notification = new Domain.Entities.Notification
+        {
+            Id = Guid.NewGuid().ToString("N")[..12],
+            TypeId = notifType?.Id ?? 1,
+            Title = request.Title,
+            Message = request.Message,
+            Timestamp = DateTime.UtcNow,
+            IsRead = false
+        };
+        _db.Notifications.Add(notification);
+        await _db.SaveChangesAsync();
+        return StatusCode(201, ApiResponse.Ok(new { id = notification.Id, message = "Notification sent." }));
     }
 
     [HttpPost("payment-reminder")]
     public IActionResult PaymentReminder([FromBody] PaymentReminderRequest request)
     {
+        // TODO: Implement actual reminder logic
         return StatusCode(201, ApiResponse.Ok(new { message = "Payment reminder sent." }));
     }
 }
+

@@ -13,7 +13,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EduTrackApi.Domain\EduTrackApi.Domain.csproj" />
-    <ProjectReference Include="..\EduTrackApi.Infrastructure\EduTrackApi.Infrastructure.csproj" />
   </ItemGroup>
 
 </Project>

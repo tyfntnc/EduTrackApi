@@ -1,126 +1,307 @@
+using EduTrackApi.Application.Common.Interfaces;
 using EduTrackApi.Application.Common.Models;
 using EduTrackApi.Application.Courses.Models;
+using EduTrackApi.Domain.Entities;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace EduTrackApi.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("v1/courses")]
 public sealed class CoursesV1Controller : ControllerBase
 {
-    private static readonly List<CourseDetailDto> MockCourses =
-    [
-        new()
-        {
-            Id = "crs1", SchoolId = "school-a", BranchId = "b1", BranchName = "Football",
-            CategoryId = "c1", CategoryName = "U19", TeacherId = "u1", TeacherName = "Ahmet Yilmaz",
-            TeacherAvatar = "https://picsum.photos/seed/u1/200",
-            TeacherBio = "15 years of professional football coaching experience.",
-            StudentCount = 2, Title = "U19 Football Elite", Location = "Field A",
-            Address = "41.0082, 28.9784",
-            InstructorNotes = "Please arrive 15 minutes early to start warm-up exercises. Cleats will be checked.",
-            Schedule = [new() { Day = 1, StartTime = "16:00", EndTime = "18:00" }, new() { Day = 3, StartTime = "16:00", EndTime = "18:00" }],
-            Students = [new() { Id = "u2", Name = "Mehmet Kaya", Avatar = "https://picsum.photos/seed/u2/200", Email = "mehmet@okul-a.com" }, new() { Id = "u9", Name = "Ali Vural", Avatar = "https://picsum.photos/seed/u9/200", Email = "ali@okul-a.com" }],
-            UserRole = "student"
-        },
-        new()
-        {
-            Id = "crs2", SchoolId = "school-a", BranchId = "b3", BranchName = "Mathematics",
-            CategoryId = "c3", CategoryName = "Private Lesson", TeacherId = "u7", TeacherName = "Fatma Sahin",
-            TeacherAvatar = "https://picsum.photos/seed/u7/200",
-            TeacherBio = "Mathematics Olympiad coordinator.",
-            StudentCount = 2, Title = "Mathematics Advanced Level", Location = "Z-12 Laboratory",
-            Address = "Ankara, Cankaya",
-            InstructorNotes = "Don't forget to bring last week's problem set. We will start the derivatives topic.",
-            Schedule = [new() { Day = 2, StartTime = "18:30", EndTime = "20:00" }, new() { Day = 4, StartTime = "18:30", EndTime = "20:00" }],
-            Students = [new() { Id = "u2", Name = "Mehmet Kaya", Avatar = "https://picsum.photos/seed/u2/200", Email = "mehmet@okul-a.com" }, new() { Id = "u9", Name = "Ali Vural", Avatar = "https://picsum.photos/seed/u9/200", Email = "ali@okul-a.com" }],
-            UserRole = "student"
-        }
-    ];
+    private readonly IEduTrackDbContext _db;
+
+    public CoursesV1Controller(IEduTrackDbContext db)
+    {
+        _db = db;
+    }
+
+    private string GetCurrentUserId() =>
+        User.FindFirstValue(ClaimTypes.NameIdentifier) ?? User.FindFirstValue("sub") ?? "";
 
     [HttpGet("my")]
-    public IActionResult GetMyCourses([FromQuery] string? search)
+    public async Task<IActionResult> GetMyCourses([FromQuery] string? search)
     {
-        var courses = MockCourses.AsEnumerable();
+        var userId = GetCurrentUserId();
+
+        var query = _db.Courses
+            .AsNoTracking()
+            .Where(c => c.TeacherId == userId || c.CourseStudents.Any(cs => cs.StudentId == userId));
+
         if (!string.IsNullOrEmpty(search))
-            courses = courses.Where(c => c.Title.Contains(search, StringComparison.OrdinalIgnoreCase));
-        return Ok(ApiResponse<List<CourseDetailDto>>.Ok(courses.ToList()));
+            query = query.Where(c => c.Title.Contains(search));
+
+        var courses = await query
+            .Select(c => new CourseDetailDto
+            {
+                Id = c.Id,
+                SchoolId = c.SchoolId ?? "",
+                BranchId = c.BranchId ?? "",
+                BranchName = c.Branch != null ? c.Branch.Name : "",
+                CategoryId = c.CategoryId ?? "",
+                CategoryName = c.Category != null ? c.Category.Name : "",
+                TeacherId = c.TeacherId ?? "",
+                TeacherName = c.Teacher != null ? c.Teacher.Name : "",
+                TeacherAvatar = c.Teacher != null ? c.Teacher.Avatar : null,
+                TeacherBio = c.Teacher != null ? c.Teacher.Bio : null,
+                StudentCount = c.CourseStudents.Count,
+                Title = c.Title,
+                Location = c.Location,
+                Address = c.Address,
+                InstructorNotes = c.InstructorNotes,
+                Schedule = c.Schedules.Select(s => new ScheduleEntryDto
+                {
+                    Day = s.DayOfWeek,
+                    StartTime = s.StartTime.ToString(@"hh\:mm"),
+                    EndTime = s.EndTime.ToString(@"hh\:mm")
+                }).ToList(),
+                Students = c.CourseStudents.Select(cs => new CourseStudentDto
+                {
+                    Id = cs.Student != null ? cs.Student.Id : cs.StudentId,
+                    Name = cs.Student != null ? cs.Student.Name : "",
+                    Avatar = cs.Student != null ? cs.Student.Avatar : null,
+                    Email = cs.Student != null ? cs.Student.Email : null
+                }).ToList()
+            })
+            .ToListAsync();
+
+        return Ok(ApiResponse<List<CourseDetailDto>>.Ok(courses));
     }
 
     [HttpGet("{courseId}")]
-    public IActionResult GetById(string courseId)
+    public async Task<IActionResult> GetById(string courseId)
     {
-        var course = MockCourses.FirstOrDefault(c => c.Id == courseId);
+        var course = await _db.Courses
+            .AsNoTracking()
+            .Where(c => c.Id == courseId)
+            .Select(c => new CourseDetailDto
+            {
+                Id = c.Id,
+                SchoolId = c.SchoolId ?? "",
+                BranchId = c.BranchId ?? "",
+                BranchName = c.Branch != null ? c.Branch.Name : "",
+                CategoryId = c.CategoryId ?? "",
+                CategoryName = c.Category != null ? c.Category.Name : "",
+                TeacherId = c.TeacherId ?? "",
+                TeacherName = c.Teacher != null ? c.Teacher.Name : "",
+                TeacherAvatar = c.Teacher != null ? c.Teacher.Avatar : null,
+                TeacherBio = c.Teacher != null ? c.Teacher.Bio : null,
+                StudentCount = c.CourseStudents.Count,
+                Title = c.Title,
+                Location = c.Location,
+                Address = c.Address,
+                InstructorNotes = c.InstructorNotes,
+                Schedule = c.Schedules.Select(s => new ScheduleEntryDto
+                {
+                    Day = s.DayOfWeek,
+                    StartTime = s.StartTime.ToString(@"hh\:mm"),
+                    EndTime = s.EndTime.ToString(@"hh\:mm")
+                }).ToList(),
+                Students = c.CourseStudents.Select(cs => new CourseStudentDto
+                {
+                    Id = cs.Student != null ? cs.Student.Id : cs.StudentId,
+                    Name = cs.Student != null ? cs.Student.Name : "",
+                    Avatar = cs.Student != null ? cs.Student.Avatar : null,
+                    Email = cs.Student != null ? cs.Student.Email : null
+                }).ToList()
+            })
+            .FirstOrDefaultAsync();
+
         if (course is null) return NotFound(ApiResponse.Fail("COURSE_NOT_FOUND", "Course not found."));
         return Ok(ApiResponse<CourseDetailDto>.Ok(course));
     }
 
     [HttpPost]
-    public IActionResult Create([FromBody] CreateCourseRequest request)
+    public async Task<IActionResult> Create([FromBody] CreateCourseRequest request)
     {
-        var newCourse = new CourseDetailDto
+        var course = new Course
         {
-            Id = $"crs-{Guid.NewGuid():N}",
+            Id = Guid.NewGuid().ToString("N")[..12],
             SchoolId = request.SchoolId,
-            BranchId = request.BranchId, BranchName = "Football",
-            CategoryId = request.CategoryId, CategoryName = "U19",
-            TeacherId = request.TeacherId, TeacherName = "Ahmet Yilmaz",
-            TeacherAvatar = "https://picsum.photos/seed/u1/200",
-            StudentCount = 0, Title = request.Title,
-            Location = request.Location, Address = request.Address,
-            InstructorNotes = request.InstructorNotes,
-            Schedule = request.Schedule, Students = []
+            BranchId = request.BranchId,
+            CategoryId = request.CategoryId,
+            TeacherId = request.TeacherId,
+            Title = request.Title,
+            Location = request.Location,
+            Address = request.Address,
+            InstructorNotes = request.InstructorNotes
         };
-        return StatusCode(201, ApiResponse<CourseDetailDto>.Ok(newCourse));
+        _db.Courses.Add(course);
+
+        var schedId = (await _db.CourseSchedules.MaxAsync(s => (int?)s.Id) ?? 0);
+        foreach (var s in request.Schedule)
+        {
+            _db.CourseSchedules.Add(new CourseSchedule
+            {
+                Id = ++schedId,
+                CourseId = course.Id,
+                DayOfWeek = (short)s.Day,
+                StartTime = TimeSpan.Parse(s.StartTime),
+                EndTime = TimeSpan.Parse(s.EndTime)
+            });
+        }
+
+        await _db.SaveChangesAsync();
+
+        var created = await _db.Courses
+            .Include(c => c.Branch).Include(c => c.Category)
+            .Include(c => c.Teacher).Include(c => c.Schedules)
+            .Include(c => c.CourseStudents).ThenInclude(cs => cs.Student)
+            .FirstAsync(c => c.Id == course.Id);
+
+        return StatusCode(201, ApiResponse<CourseDetailDto>.Ok(MapToDto(created)));
     }
 
     [HttpPut("{courseId}")]
-    public IActionResult Update(string courseId, [FromBody] CreateCourseRequest request)
+    public async Task<IActionResult> Update(string courseId, [FromBody] CreateCourseRequest request)
     {
-        var course = MockCourses.FirstOrDefault(c => c.Id == courseId);
+        var course = await _db.Courses.Include(c => c.Schedules).FirstOrDefaultAsync(c => c.Id == courseId);
         if (course is null) return NotFound(ApiResponse.Fail("COURSE_NOT_FOUND", "Course not found."));
-        return Ok(ApiResponse<CourseDetailDto>.Ok(course));
+
+        course.Title = request.Title;
+        course.BranchId = request.BranchId;
+        course.CategoryId = request.CategoryId;
+        course.TeacherId = request.TeacherId;
+        course.Location = request.Location;
+        course.Address = request.Address;
+        course.InstructorNotes = request.InstructorNotes;
+
+        _db.CourseSchedules.RemoveRange(course.Schedules);
+        var schedId = (await _db.CourseSchedules.MaxAsync(s => (int?)s.Id) ?? 0);
+        foreach (var s in request.Schedule)
+        {
+            _db.CourseSchedules.Add(new CourseSchedule
+            {
+                Id = ++schedId,
+                CourseId = course.Id,
+                DayOfWeek = (short)s.Day,
+                StartTime = TimeSpan.Parse(s.StartTime),
+                EndTime = TimeSpan.Parse(s.EndTime)
+            });
+        }
+
+        await _db.SaveChangesAsync();
+
+        var updated = await _db.Courses
+            .Include(c => c.Branch).Include(c => c.Category)
+            .Include(c => c.Teacher).Include(c => c.Schedules)
+            .Include(c => c.CourseStudents).ThenInclude(cs => cs.Student)
+            .FirstAsync(c => c.Id == courseId);
+
+        return Ok(ApiResponse<CourseDetailDto>.Ok(MapToDto(updated)));
     }
 
     [HttpDelete("{courseId}")]
-    public IActionResult Delete(string courseId)
+    public async Task<IActionResult> Delete(string courseId)
     {
+        var course = await _db.Courses.FindAsync(courseId);
+        if (course is null) return NotFound(ApiResponse.Fail("COURSE_NOT_FOUND", "Course not found."));
+
+        _db.Courses.Remove(course);
+        await _db.SaveChangesAsync();
         return Ok(ApiResponse.Ok(new { message = "Course deleted." }));
     }
 
     [HttpPost("{courseId}/students")]
-    public IActionResult AddStudent(string courseId, [FromBody] AddStudentRequest request)
+    public async Task<IActionResult> AddStudent(string courseId, [FromBody] AddStudentRequest request)
     {
-        return Ok(ApiResponse.Ok(new { message = "Student added to course.", studentCount = 3 }));
+        _db.CourseStudents.Add(new CourseStudent { CourseId = courseId, StudentId = request.StudentId });
+        await _db.SaveChangesAsync();
+        var count = await _db.CourseStudents.CountAsync(cs => cs.CourseId == courseId);
+        return Ok(ApiResponse.Ok(new { message = "Student added to course.", studentCount = count }));
     }
 
     [HttpDelete("{courseId}/students/{studentId}")]
-    public IActionResult RemoveStudent(string courseId, string studentId)
+    public async Task<IActionResult> RemoveStudent(string courseId, string studentId)
     {
-        return Ok(ApiResponse.Ok(new { message = "Student removed from course.", studentCount = 2 }));
+        var cs = await _db.CourseStudents.FindAsync(courseId, studentId);
+        if (cs is not null) _db.CourseStudents.Remove(cs);
+        await _db.SaveChangesAsync();
+        var count = await _db.CourseStudents.CountAsync(x => x.CourseId == courseId);
+        return Ok(ApiResponse.Ok(new { message = "Student removed from course.", studentCount = count }));
     }
+
+    private static CourseDetailDto MapToDto(Course c) => new()
+    {
+        Id = c.Id,
+        SchoolId = c.SchoolId ?? "",
+        BranchId = c.BranchId ?? "",
+        BranchName = c.Branch?.Name ?? "",
+        CategoryId = c.CategoryId ?? "",
+        CategoryName = c.Category?.Name ?? "",
+        TeacherId = c.TeacherId ?? "",
+        TeacherName = c.Teacher?.Name ?? "",
+        TeacherAvatar = c.Teacher?.Avatar,
+        TeacherBio = c.Teacher?.Bio,
+        StudentCount = c.CourseStudents.Count,
+        Title = c.Title,
+        Location = c.Location,
+        Address = c.Address,
+        InstructorNotes = c.InstructorNotes,
+        Schedule = c.Schedules.Select(s => new ScheduleEntryDto
+        {
+            Day = s.DayOfWeek,
+            StartTime = s.StartTime.ToString(@"hh\:mm"),
+            EndTime = s.EndTime.ToString(@"hh\:mm")
+        }).ToList(),
+        Students = c.CourseStudents.Select(cs => new CourseStudentDto
+        {
+            Id = cs.Student?.Id ?? cs.StudentId,
+            Name = cs.Student?.Name ?? "",
+            Avatar = cs.Student?.Avatar,
+            Email = cs.Student?.Email
+        }).ToList()
+    };
 }
 
+[Authorize]
 [ApiController]
 [Route("v1/schools/{schoolId}/courses")]
 public sealed class SchoolCoursesController : ControllerBase
 {
-    [HttpGet]
-    public IActionResult GetSchoolCourses(string schoolId)
+    private readonly IEduTrackDbContext _db;
+
+    public SchoolCoursesController(IEduTrackDbContext db)
     {
-        // Reuse same mock data filtered by schoolId
-        var courses = new List<CourseDetailDto>
-        {
-            new()
+        _db = db;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetSchoolCourses(string schoolId)
+    {
+        var courses = await _db.Courses
+            .AsNoTracking()
+            .Where(c => c.SchoolId == schoolId)
+            .Select(c => new CourseDetailDto
             {
-                Id = "crs1", SchoolId = schoolId, BranchId = "b1", BranchName = "Football",
-                CategoryId = "c1", CategoryName = "U19", TeacherId = "u1", TeacherName = "Ahmet Yilmaz",
-                TeacherAvatar = "https://picsum.photos/seed/u1/200",
-                StudentCount = 2, Title = "U19 Football Elite", Location = "Field A",
-                Address = "41.0082, 28.9784",
-                Schedule = [new() { Day = 1, StartTime = "16:00", EndTime = "18:00" }]
-            }
-        };
+                Id = c.Id,
+                SchoolId = c.SchoolId ?? "",
+                BranchId = c.BranchId ?? "",
+                BranchName = c.Branch != null ? c.Branch.Name : "",
+                CategoryId = c.CategoryId ?? "",
+                CategoryName = c.Category != null ? c.Category.Name : "",
+                TeacherId = c.TeacherId ?? "",
+                TeacherName = c.Teacher != null ? c.Teacher.Name : "",
+                TeacherAvatar = c.Teacher != null ? c.Teacher.Avatar : null,
+                StudentCount = c.CourseStudents.Count,
+                Title = c.Title,
+                Location = c.Location,
+                Address = c.Address,
+                Schedule = c.Schedules.Select(s => new ScheduleEntryDto
+                {
+                    Day = s.DayOfWeek,
+                    StartTime = s.StartTime.ToString(@"hh\:mm"),
+                    EndTime = s.EndTime.ToString(@"hh\:mm")
+                }).ToList()
+            })
+            .ToListAsync();
+
         return Ok(ApiResponse<List<CourseDetailDto>>.Ok(courses));
     }
 }
+

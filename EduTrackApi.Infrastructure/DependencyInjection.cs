@@ -1,5 +1,6 @@
 ﻿using EduTrackApi.Application.Common.Interfaces;
 using EduTrackApi.Infrastructure.Persistence;
+using EduTrackApi.Infrastructure.Security;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -13,18 +14,35 @@ public static class DependencyInjection
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        // Connection string: check for encrypted version first, fall back to plain
+        var connectionString = configuration["ConnectionStrings:DefaultConnectionEncrypted"];
+        var encryptionKey = configuration["ConnectionStrings:EncryptionKey"];
 
-        var dataSourceBuilder = new NpgsqlDataSourceBuilder(connectionString);
-        var dataSource = dataSourceBuilder.Build();
+        if (!string.IsNullOrEmpty(connectionString) && !string.IsNullOrEmpty(encryptionKey))
+        {
+            connectionString = ConnectionStringProtector.Decrypt(connectionString, encryptionKey);
+        }
+        else
+        {
+            connectionString = configuration.GetConnectionString("DefaultConnection");
+        }
 
         services.AddDbContext<EduTrackDbContext>(options =>
         {
-            options.UseNpgsql(dataSource);
+            options.UseNpgsql(connectionString, npgsqlOptions =>
+            {
+                npgsqlOptions.CommandTimeout(60);
+                npgsqlOptions.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorCodesToAdd: null);
+            });
         });
 
         services.AddScoped<IEduTrackDbContext>(sp => sp.GetRequiredService<EduTrackDbContext>());
-        
+        services.AddScoped<IJwtTokenService, JwtTokenService>();
+        services.AddScoped<IAuthService, AuthService>();
+
         return services;
     }
 }

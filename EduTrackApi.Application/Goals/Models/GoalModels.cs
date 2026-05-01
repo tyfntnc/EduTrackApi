@@ -14,7 +14,7 @@ public sealed class TaskDto
 {
     public string Id { get; init; } = default!;
     public string Text { get; init; } = default!;
-    public bool IsCompleted { get; init; }
+    public bool IsCompleted { get; set; }
 }
 
 public sealed class CreateGoalRequest

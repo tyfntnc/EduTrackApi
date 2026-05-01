@@ -11,6 +11,7 @@ public class User
 
     public string Name { get; set; } = null!;
     public string Email { get; set; } = null!;
+    public string? PasswordHash { get; set; }
     public string? Avatar { get; set; }
     public string? Bio { get; set; }
 
@@ -18,6 +19,9 @@ public class User
     public string? Gender { get; set; }
     public DateTime? BirthDate { get; set; }
     public string? Address { get; set; }
+
+    public string? RefreshToken { get; set; }
+    public DateTime? RefreshTokenExpiry { get; set; }
 
     public UserRole Role { get; set; } = null!;
     public School? School { get; set; }

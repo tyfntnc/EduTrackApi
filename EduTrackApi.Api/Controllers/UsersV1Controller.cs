@@ -1,125 +1,292 @@
+using EduTrackApi.Application.Common.Interfaces;
 using EduTrackApi.Application.Common.Models;
 using EduTrackApi.Application.Users.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 
 namespace EduTrackApi.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("v1/users")]
 public sealed class UsersV1Controller : ControllerBase
 {
-    private static readonly List<UserProfileDto> MockUsers =
-    [
-        new() { Id = "admin", Name = "Zeynep Sistem", Email = "admin@edutrack.com", Role = "System Admin", SchoolId = null, Avatar = "https://picsum.photos/seed/admin/200", PhoneNumber = "0555 111 22 33", Gender = "Female", BirthDate = "1990-05-15", Address = "Istanbul, Turkey", Badges = [], ProfileCompletion = 75 },
-        new() { Id = "u4", Name = "Canan Sert", Email = "canan@okul-a.com", Role = "School Admin", SchoolId = "school-a", Avatar = "https://picsum.photos/seed/u4/200", PhoneNumber = "0555 444 55 66", ProfileCompletion = 60 },
-        new() { Id = "u1", Name = "Ahmet Yilmaz", Email = "ahmet@okul-a.com", Role = "Teacher/Coach", SchoolId = "school-a", Avatar = "https://picsum.photos/seed/u1/200", Bio = "15 years of professional football coaching experience.", PhoneNumber = "0532 123 45 67", ProfileCompletion = 90 },
-        new() { Id = "u3", Name = "Ayse Demir", Email = "ayse@veli.com", Role = "Parent", Avatar = "https://picsum.photos/seed/u3/200", ChildIds = ["u2", "u9"], ProfileCompletion = 50 },
-        new() { Id = "u2", Name = "Mehmet Kaya", Email = "mehmet@okul-a.com", Role = "Student", SchoolId = "school-a", Avatar = "https://picsum.photos/seed/u2/200", ParentIds = ["u3"], Badges = ["bg1", "bg2", "bg3", "bg4", "bg5"], PhoneNumber = "0505 987 65 43", BirthDate = "2008-10-12", Gender = "Male", Address = "Ankara, Turkey", BranchIds = ["b1", "b3"], ProfileCompletion = 87 },
-        new() { Id = "u9", Name = "Ali Vural", Email = "ali@okul-a.com", Role = "Student", SchoolId = "school-a", Avatar = "https://picsum.photos/seed/u9/200", ParentIds = ["u3"], Badges = ["bg1"], ProfileCompletion = 40 },
-        new() { Id = "u5", Name = "Bulent Arin", Email = "bulent@okul-b.com", Role = "School Admin", SchoolId = "school-b", Avatar = "https://picsum.photos/seed/u5/200", ProfileCompletion = 55 },
-        new() { Id = "u7", Name = "Fatma Sahin", Email = "fatma@okul-a.com", Role = "Teacher/Coach", SchoolId = "school-a", Avatar = "https://picsum.photos/seed/u7/200", Bio = "Mathematics Olympiad coordinator.", ProfileCompletion = 70 },
-        new() { Id = "u8", Name = "Murat Can", Email = "murat@okul-a.com", Role = "Teacher/Coach", SchoolId = "school-a", Avatar = "https://picsum.photos/seed/u8/200", ProfileCompletion = 45 }
-    ];
+    private readonly IEduTrackDbContext _db;
+
+    public UsersV1Controller(IEduTrackDbContext db)
+    {
+        _db = db;
+    }
+
+    private string GetCurrentUserId() =>
+        User.FindFirstValue(ClaimTypes.NameIdentifier)
+        ?? User.FindFirstValue("sub")
+        ?? throw new UnauthorizedAccessException();
 
     [HttpGet("me")]
-    public IActionResult GetCurrentUser()
+    public async Task<IActionResult> GetCurrentUser()
     {
-        // Mock: u2 is the current session user
-        var user = MockUsers.First(u => u.Id == "u2");
-        return Ok(ApiResponse<UserProfileDto>.Ok(user));
+        var userId = GetCurrentUserId();
+        var profile = await _db.Users
+            .AsNoTracking()
+            .Where(u => u.Id == userId)
+            .Select(u => new UserProfileDto
+            {
+                Id = u.Id,
+                Name = u.Name,
+                Email = u.Email,
+                Role = u.Role != null ? u.Role.Code : "",
+                SchoolId = u.SchoolId,
+                Avatar = u.Avatar,
+                PhoneNumber = u.PhoneNumber,
+                BirthDate = u.BirthDate.HasValue ? u.BirthDate.Value.ToString("yyyy-MM-dd") : null,
+                Gender = u.Gender,
+                Address = u.Address,
+                Bio = u.Bio,
+                ParentIds = u.ParentChildrenAsChild.Select(pc => pc.ParentId).ToList(),
+                ChildIds = u.ParentChildrenAsParent.Select(pc => pc.ChildId).ToList(),
+                Badges = u.UserBadges.Select(ub => ub.BadgeId).ToList(),
+                BranchIds = u.CourseStudents.Select(cs => cs.Course!.BranchId).Where(b => b != null).Distinct().ToList()!,
+                ProfileCompletion = (int)Math.Round(
+                    ((u.Name != null && u.Name != "" ? 1 : 0) +
+                     (u.Email != null && u.Email != "" ? 1 : 0) +
+                     (u.PhoneNumber != null && u.PhoneNumber != "" ? 1 : 0) +
+                     (u.Avatar != null && u.Avatar != "" ? 1 : 0) +
+                     (u.BirthDate.HasValue ? 1 : 0) +
+                     (u.Gender != null && u.Gender != "" ? 1 : 0) +
+                     (u.Address != null && u.Address != "" ? 1 : 0) +
+                     (u.Bio != null && u.Bio != "" ? 1 : 0)) * 100.0 / 8)
+            })
+            .FirstOrDefaultAsync();
+
+        if (profile is null) return NotFound(ApiResponse.Fail("USER_NOT_FOUND", "User not found."));
+        return Ok(ApiResponse<UserProfileDto>.Ok(profile));
     }
 
     [HttpPatch("me")]
-    public IActionResult UpdateProfile([FromBody] UpdateProfileRequest request)
+    public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileRequest request)
     {
-        var user = MockUsers.First(u => u.Id == "u2");
-        return Ok(ApiResponse.Ok(new
-        {
-            id = user.Id,
-            name = request.Name ?? user.Name,
-            phoneNumber = request.PhoneNumber ?? user.PhoneNumber,
-            birthDate = request.BirthDate ?? user.BirthDate,
-            gender = request.Gender ?? user.Gender,
-            address = request.Address ?? user.Address,
-            bio = request.Bio ?? user.Bio,
-            profileCompletion = 100
-        }));
-    }
+        var userId = GetCurrentUserId();
+        var user = await _db.Users.FindAsync(userId);
+        if (user is null) return NotFound(ApiResponse.Fail("USER_NOT_FOUND", "User not found."));
 
-    [HttpPost("me/avatar")]
-    public IActionResult UploadAvatar()
-    {
-        return Ok(ApiResponse.Ok(new { avatarUrl = "https://picsum.photos/seed/u2-new/200" }));
+        if (request.Name is not null) user.Name = request.Name;
+        if (request.PhoneNumber is not null) user.PhoneNumber = request.PhoneNumber;
+        if (request.BirthDate is not null && DateTime.TryParse(request.BirthDate, out var bd))
+            user.BirthDate = DateTime.SpecifyKind(bd, DateTimeKind.Utc);
+        if (request.Gender is not null) user.Gender = request.Gender;
+        if (request.Address is not null) user.Address = request.Address;
+        if (request.Bio is not null) user.Bio = request.Bio;
+
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse.Ok(new { id = user.Id, message = "Profile updated." }));
     }
 
     [HttpPatch("me/password")]
-    public IActionResult ChangePassword([FromBody] ChangePasswordRequest request)
+    public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordRequest request)
     {
+        var userId = GetCurrentUserId();
+        var user = await _db.Users.FindAsync(userId);
+        if (user is null) return NotFound(ApiResponse.Fail("USER_NOT_FOUND", "User not found."));
+
+        if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+            return BadRequest(ApiResponse.Fail("WRONG_PASSWORD", "Current password is incorrect."));
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        await _db.SaveChangesAsync();
         return Ok(ApiResponse.Ok(new { message = "Password updated." }));
     }
 
     [HttpGet("{userId}")]
-    public IActionResult GetById(string userId)
+    public async Task<IActionResult> GetById(string userId)
     {
-        var user = MockUsers.FirstOrDefault(u => u.Id == userId);
-        if (user is null) return NotFound(ApiResponse.Fail("USER_NOT_FOUND", "User not found."));
-        return Ok(ApiResponse<UserProfileDto>.Ok(user));
+        var profile = await _db.Users
+            .AsNoTracking()
+            .Where(u => u.Id == userId)
+            .Select(u => new UserProfileDto
+            {
+                Id = u.Id,
+                Name = u.Name,
+                Email = u.Email,
+                Role = u.Role != null ? u.Role.Code : "",
+                SchoolId = u.SchoolId,
+                Avatar = u.Avatar,
+                PhoneNumber = u.PhoneNumber,
+                BirthDate = u.BirthDate.HasValue ? u.BirthDate.Value.ToString("yyyy-MM-dd") : null,
+                Gender = u.Gender,
+                Address = u.Address,
+                Bio = u.Bio,
+                ParentIds = u.ParentChildrenAsChild.Select(pc => pc.ParentId).ToList(),
+                ChildIds = u.ParentChildrenAsParent.Select(pc => pc.ChildId).ToList(),
+                Badges = u.UserBadges.Select(ub => ub.BadgeId).ToList(),
+                BranchIds = u.CourseStudents.Select(cs => cs.Course!.BranchId).Where(b => b != null).Distinct().ToList()!,
+                ProfileCompletion = (int)Math.Round(
+                    ((u.Name != null && u.Name != "" ? 1 : 0) +
+                     (u.Email != null && u.Email != "" ? 1 : 0) +
+                     (u.PhoneNumber != null && u.PhoneNumber != "" ? 1 : 0) +
+                     (u.Avatar != null && u.Avatar != "" ? 1 : 0) +
+                     (u.BirthDate.HasValue ? 1 : 0) +
+                     (u.Gender != null && u.Gender != "" ? 1 : 0) +
+                     (u.Address != null && u.Address != "" ? 1 : 0) +
+                     (u.Bio != null && u.Bio != "" ? 1 : 0)) * 100.0 / 8)
+            })
+            .FirstOrDefaultAsync();
+
+        if (profile is null) return NotFound(ApiResponse.Fail("USER_NOT_FOUND", "User not found."));
+        return Ok(ApiResponse<UserProfileDto>.Ok(profile));
     }
 
     [HttpPatch("{userId}/role")]
-    public IActionResult UpdateRole(string userId, [FromBody] UpdateRoleRequest request)
+    public async Task<IActionResult> UpdateRole(string userId, [FromBody] UpdateRoleRequest request)
     {
-        return Ok(ApiResponse.Ok(new { id = userId, role = request.Role, updatedAt = DateTime.UtcNow.ToString("o") }));
+        var user = await _db.Users.FindAsync(userId);
+        if (user is null) return NotFound(ApiResponse.Fail("USER_NOT_FOUND", "User not found."));
+
+        var role = await _db.UserRoles.FirstOrDefaultAsync(r => r.Code == request.Role);
+        if (role is null) return BadRequest(ApiResponse.Fail("INVALID_ROLE", "Role not found."));
+
+        user.RoleId = role.Id;
+        await _db.SaveChangesAsync();
+        return Ok(ApiResponse.Ok(new { id = userId, role = role.Code, updatedAt = DateTime.UtcNow.ToString("o") }));
     }
 
     [HttpGet("me/family")]
-    public IActionResult GetFamily()
+    public async Task<IActionResult> GetFamily()
     {
-        var family = new List<FamilyMemberDto>
+        var userId = GetCurrentUserId();
+        var user = await _db.Users
+            .Include(u => u.ParentChildrenAsChild).ThenInclude(pc => pc.Parent).ThenInclude(p => p.Role)
+            .Include(u => u.ParentChildrenAsParent).ThenInclude(pc => pc.Child).ThenInclude(c => c.Role)
+            .FirstOrDefaultAsync(u => u.Id == userId);
+
+        if (user is null) return NotFound(ApiResponse.Fail("USER_NOT_FOUND", "User not found."));
+
+        var family = new List<FamilyMemberDto>();
+        foreach (var pc in user.ParentChildrenAsChild)
         {
-            new() { Id = "u3", Name = "Ayse Demir", Email = "ayse@veli.com", Role = "Parent", Avatar = "https://picsum.photos/seed/u3/200", RelationshipType = "parent", CustomRoleLabel = null }
-        };
+            family.Add(new FamilyMemberDto
+            {
+                Id = pc.Parent.Id, Name = pc.Parent.Name, Email = pc.Parent.Email,
+                Role = pc.Parent.Role?.Code ?? "", Avatar = pc.Parent.Avatar,
+                RelationshipType = "parent"
+            });
+        }
+        foreach (var pc in user.ParentChildrenAsParent)
+        {
+            family.Add(new FamilyMemberDto
+            {
+                Id = pc.Child.Id, Name = pc.Child.Name, Email = pc.Child.Email,
+                Role = pc.Child.Role?.Code ?? "", Avatar = pc.Child.Avatar,
+                RelationshipType = "child"
+            });
+        }
         return Ok(ApiResponse<List<FamilyMemberDto>>.Ok(family));
     }
 
     [HttpPost("me/family")]
-    public IActionResult AddFamily([FromBody] AddFamilyRequest request)
+    public async Task<IActionResult> AddFamily([FromBody] AddFamilyRequest request)
     {
+        var userId = GetCurrentUserId();
+        var target = await _db.Users.FindAsync(request.TargetUserId);
+        if (target is null) return NotFound(ApiResponse.Fail("USER_NOT_FOUND", "Target user not found."));
+
+        if (request.RelationshipType == "parent")
+            _db.ParentChildren.Add(new Domain.Entities.ParentChild { ParentId = request.TargetUserId, ChildId = userId });
+        else
+            _db.ParentChildren.Add(new Domain.Entities.ParentChild { ParentId = userId, ChildId = request.TargetUserId });
+
+        await _db.SaveChangesAsync();
         return Ok(ApiResponse.Ok(new { message = "Family connection added." }));
     }
 
     [HttpDelete("me/family/{targetUserId}")]
-    public IActionResult RemoveFamily(string targetUserId)
+    public async Task<IActionResult> RemoveFamily(string targetUserId)
     {
+        var userId = GetCurrentUserId();
+        var link = await _db.ParentChildren
+            .FirstOrDefaultAsync(pc =>
+                (pc.ParentId == userId && pc.ChildId == targetUserId) ||
+                (pc.ParentId == targetUserId && pc.ChildId == userId));
+
+        if (link is null) return NotFound(ApiResponse.Fail("NOT_FOUND", "Family connection not found."));
+
+        _db.ParentChildren.Remove(link);
+        await _db.SaveChangesAsync();
         return Ok(ApiResponse.Ok(new { message = "Family connection removed." }));
     }
 
-    [HttpPost("me/device-token")]
-    public IActionResult RegisterDeviceToken([FromBody] DeviceTokenRequest request)
+    private static UserProfileDto MapToProfile(Domain.Entities.User user)
     {
-        return Ok(ApiResponse.Ok(new { message = "Device token registered." }));
+        var filledFields = 0;
+        var totalFields = 8;
+        if (!string.IsNullOrEmpty(user.Name)) filledFields++;
+        if (!string.IsNullOrEmpty(user.Email)) filledFields++;
+        if (!string.IsNullOrEmpty(user.PhoneNumber)) filledFields++;
+        if (!string.IsNullOrEmpty(user.Avatar)) filledFields++;
+        if (user.BirthDate.HasValue) filledFields++;
+        if (!string.IsNullOrEmpty(user.Gender)) filledFields++;
+        if (!string.IsNullOrEmpty(user.Address)) filledFields++;
+        if (!string.IsNullOrEmpty(user.Bio)) filledFields++;
+
+        return new UserProfileDto
+        {
+            Id = user.Id,
+            Name = user.Name,
+            Email = user.Email,
+            Role = user.Role?.Code ?? "",
+            SchoolId = user.SchoolId,
+            Avatar = user.Avatar,
+            PhoneNumber = user.PhoneNumber,
+            BirthDate = user.BirthDate?.ToString("yyyy-MM-dd"),
+            Gender = user.Gender,
+            Address = user.Address,
+            Bio = user.Bio,
+            ParentIds = user.ParentChildrenAsChild.Select(pc => pc.ParentId).ToList(),
+            ChildIds = user.ParentChildrenAsParent.Select(pc => pc.ChildId).ToList(),
+            Badges = user.UserBadges.Select(ub => ub.BadgeId).ToList(),
+            BranchIds = user.CourseStudents.Select(cs => cs.Course?.BranchId).Where(b => b is not null).Distinct().ToList()!,
+            ProfileCompletion = (int)Math.Round(filledFields * 100.0 / totalFields)
+        };
     }
 }
 
+[Authorize]
 [ApiController]
 [Route("v1/schools/{schoolId}/users")]
 public sealed class SchoolUsersController : ControllerBase
 {
-    [HttpGet]
-    public IActionResult GetSchoolUsers(string schoolId, [FromQuery] string? role, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    private readonly IEduTrackDbContext _db;
+
+    public SchoolUsersController(IEduTrackDbContext db)
     {
-        var users = new List<UserListItemDto>
-        {
-            new() { Id = "u2", Name = "Mehmet Kaya", Email = "mehmet@okul-a.com", Role = "Student", Avatar = "https://picsum.photos/seed/u2/200" },
-            new() { Id = "u9", Name = "Ali Vural", Email = "ali@okul-a.com", Role = "Student", Avatar = "https://picsum.photos/seed/u9/200" },
-            new() { Id = "u1", Name = "Ahmet Yilmaz", Email = "ahmet@okul-a.com", Role = "Teacher/Coach", Avatar = "https://picsum.photos/seed/u1/200" },
-            new() { Id = "u7", Name = "Fatma Sahin", Email = "fatma@okul-a.com", Role = "Teacher/Coach", Avatar = "https://picsum.photos/seed/u7/200" },
-            new() { Id = "u8", Name = "Murat Can", Email = "murat@okul-a.com", Role = "Teacher/Coach", Avatar = "https://picsum.photos/seed/u8/200" }
-        };
+        _db = db;
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> GetSchoolUsers(string schoolId, [FromQuery] string? role, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        var query = _db.Users.Include(u => u.Role).Where(u => u.SchoolId == schoolId);
 
         if (!string.IsNullOrEmpty(role))
-            users = users.Where(u => u.Role == role).ToList();
+            query = query.Where(u => u.Role.Code == role);
 
-        return Ok(ApiResponse<List<UserListItemDto>>.Ok(users, new MetaData { Page = page, PageSize = pageSize, Total = users.Count }));
+        var total = await query.CountAsync();
+        var users = await query
+            .Skip((page - 1) * pageSize)
+            .Take(pageSize)
+            .Select(u => new UserListItemDto
+            {
+                Id = u.Id,
+                Name = u.Name,
+                Email = u.Email,
+                Role = u.Role.Code,
+                Avatar = u.Avatar
+            })
+            .ToListAsync();
+
+        return Ok(ApiResponse<List<UserListItemDto>>.Ok(users, new MetaData { Page = page, PageSize = pageSize, Total = total }));
     }
 }
+

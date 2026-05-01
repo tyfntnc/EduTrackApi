@@ -1,9 +1,11 @@
 using EduTrackApi.Application.Common.Models;
 using EduTrackApi.Application.Goals.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EduTrackApi.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("v1/goals")]
 public sealed class GoalsController : ControllerBase
@@ -55,7 +57,18 @@ public sealed class GoalsController : ControllerBase
     [HttpPatch("{goalId}/tasks/{taskId}/toggle")]
     public IActionResult ToggleTask(string goalId, string taskId)
     {
-        return Ok(ApiResponse.Ok(new { id = taskId, isCompleted = false, goalProgress = 50 }));
+        var goal = MockGoals.FirstOrDefault(g => g.Id == goalId);
+        if (goal is null) return NotFound(ApiResponse.Fail("GOAL_NOT_FOUND", "Goal not found."));
+
+        var task = goal.Tasks.FirstOrDefault(t => t.Id == taskId);
+        if (task is null) return NotFound(ApiResponse.Fail("TASK_NOT_FOUND", "Task not found."));
+
+        task.IsCompleted = !task.IsCompleted;
+
+        var completedCount = goal.Tasks.Count(t => t.IsCompleted);
+        var goalProgress = goal.Tasks.Count == 0 ? 0 : (int)Math.Round(completedCount * 100.0 / goal.Tasks.Count);
+
+        return Ok(ApiResponse.Ok(new { id = taskId, isCompleted = task.IsCompleted, goalProgress }));
     }
 
     [HttpDelete("{goalId}")]

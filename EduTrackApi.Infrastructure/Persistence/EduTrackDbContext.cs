@@ -96,12 +96,16 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
             entity.Property(e => e.Email).HasColumnName("email").HasMaxLength(255).IsRequired();
             entity.HasIndex(e => e.Email).IsUnique();
 
+            entity.Property(e => e.PasswordHash).HasColumnName("password_hash");
             entity.Property(e => e.Avatar).HasColumnName("avatar");
             entity.Property(e => e.Bio).HasColumnName("bio");
             entity.Property(e => e.PhoneNumber).HasColumnName("phone_number").HasMaxLength(50);
             entity.Property(e => e.Gender).HasColumnName("gender").HasMaxLength(20);
             entity.Property(e => e.BirthDate).HasColumnName("birth_date");
             entity.Property(e => e.Address).HasColumnName("address");
+
+            entity.Property(e => e.RefreshToken).HasColumnName("refresh_token").HasMaxLength(500);
+            entity.Property(e => e.RefreshTokenExpiry).HasColumnName("refresh_token_expiry");
 
             entity.Property(e => e.RoleId).HasColumnName("role_id");
             entity.Property(e => e.SchoolId).HasColumnName("school_id").HasMaxLength(50);
@@ -238,6 +242,8 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 .WithMany(u => u.CourseStudents)
                 .HasForeignKey(e => e.StudentId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasIndex(e => e.StudentId).HasDatabaseName("ix_course_students_student");
         });
 
         // Payment
@@ -357,12 +363,15 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
         );
 
         // Users (MOCK_USERS)
+        // Default password for all seed users: "Sifre123"
+        var defaultPasswordHash = "$2a$11$K3xOGa7FBLFHgSWVbymq7OZHnEFgPD4./uwvxMz6E9GZ1q3dBp3Qy";
         modelBuilder.Entity<User>().HasData(
             new User
             {
                 Id = "admin",
                 Name = "Zeynep Sistem",
                 Email = "admin@edutrack.com",
+                PasswordHash = defaultPasswordHash,
                 Avatar = "https://picsum.photos/seed/admin/200",
                 PhoneNumber = "0555 111 22 33",
                 Gender = "Kadın",
@@ -375,6 +384,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 Id = "u4",
                 Name = "Canan Sert",
                 Email = "canan@okul-a.com",
+                PasswordHash = defaultPasswordHash,
                 SchoolId = "school-a",
                 Avatar = "https://picsum.photos/seed/u4/200",
                 PhoneNumber = "0555 444 55 66",
@@ -385,6 +395,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 Id = "u1",
                 Name = "Ahmet Yılmaz",
                 Email = "ahmet@okul-a.com",
+                PasswordHash = defaultPasswordHash,
                 SchoolId = "school-a",
                 Avatar = "https://picsum.photos/seed/u1/200",
                 Bio = "15 yıllık profesyonel futbol antrenörlüğü tecrübesi.",
@@ -396,6 +407,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 Id = "u3",
                 Name = "Ayşe Demir",
                 Email = "ayse@veli.com",
+                PasswordHash = defaultPasswordHash,
                 Avatar = "https://picsum.photos/seed/u3/200",
                 RoleId = 4
             },
@@ -404,6 +416,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 Id = "u2",
                 Name = "Mehmet Kaya",
                 Email = "mehmet@okul-a.com",
+                PasswordHash = defaultPasswordHash,
                 SchoolId = "school-a",
                 Avatar = "https://picsum.photos/seed/u2/200",
                 PhoneNumber = "0505 987 65 43",
@@ -417,6 +430,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 Id = "u9",
                 Name = "Ali Vural",
                 Email = "ali@okul-a.com",
+                PasswordHash = defaultPasswordHash,
                 SchoolId = "school-a",
                 Avatar = "https://picsum.photos/seed/u9/200",
                 RoleId = 5
@@ -426,6 +440,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 Id = "u5",
                 Name = "Bülent Arın",
                 Email = "bulent@okul-b.com",
+                PasswordHash = defaultPasswordHash,
                 SchoolId = "school-b",
                 Avatar = "https://picsum.photos/seed/u5/200",
                 RoleId = 2
@@ -435,6 +450,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 Id = "u7",
                 Name = "Fatma Şahin",
                 Email = "fatma@okul-a.com",
+                PasswordHash = defaultPasswordHash,
                 SchoolId = "school-a",
                 Avatar = "https://picsum.photos/seed/u7/200",
                 Bio = "Matematik Olimpiyatları koordinatörü.",
@@ -445,6 +461,7 @@ public class EduTrackDbContext : DbContext, IEduTrackDbContext
                 Id = "u8",
                 Name = "Murat Can",
                 Email = "murat@okul-a.com",
+                PasswordHash = defaultPasswordHash,
                 SchoolId = "school-a",
                 Avatar = "https://picsum.photos/seed/u8/200",
                 RoleId = 3

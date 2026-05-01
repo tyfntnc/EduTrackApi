@@ -1,9 +1,11 @@
 using EduTrackApi.Application.Attendance.Models;
 using EduTrackApi.Application.Common.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace EduTrackApi.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("v1/attendance")]
 public sealed class AttendanceController : ControllerBase

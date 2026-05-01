@@ -1,51 +1,76 @@
 using EduTrackApi.Application.Badges.Models;
+using EduTrackApi.Application.Common.Interfaces;
 using EduTrackApi.Application.Common.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace EduTrackApi.Api.Controllers;
 
+[Authorize]
 [ApiController]
 [Route("v1")]
 public sealed class BadgesController : ControllerBase
 {
-    private static readonly List<BadgeDto> MockBadges =
-    [
-        new() { Id = "bg1", Name = "7 Day Streak", Description = "You attended training every day for a week. Amazing consistency!", Icon = "\ud83d\udd25", Color = "from-orange-400 to-rose-500", Criteria = new() { Type = "attendance_streak", RequiredDays = 7 } },
-        new() { Id = "bg2", Name = "Early Bird", Description = "You are the star of morning trainings before 09:00.", Icon = "\ud83c\udf05", Color = "from-amber-300 to-orange-500", Criteria = new() { Type = "early_attendance", BeforeHour = 9 } },
-        new() { Id = "bg3", Name = "Double Shift", Description = "You pushed boundaries by training in two different branches on the same day.", Icon = "\u26a1", Color = "from-indigo-400 to-purple-600" },
-        new() { Id = "bg4", Name = "Loyal Athlete", Description = "You reached over 20 hours of training this month.", Icon = "\ud83c\udfaf", Color = "from-emerald-400 to-teal-600" },
-        new() { Id = "bg5", Name = "Growth Pioneer", Description = "You received \"Outstanding Success\" comments 3 times in a row from instructor notes.", Icon = "\ud83d\ude80", Color = "from-blue-400 to-indigo-600" },
-        new() { Id = "bg6", Name = "Social Butterfly", Description = "You were selected as the most collaborative student in group activities.", Icon = "\ud83e\udd1d", Color = "from-pink-400 to-rose-500" }
-    ];
+    private readonly IEduTrackDbContext _db;
+
+    public BadgesController(IEduTrackDbContext db)
+    {
+        _db = db;
+    }
 
     [HttpGet("badges")]
-    public IActionResult GetAll()
+    public async Task<IActionResult> GetAll()
     {
-        return Ok(ApiResponse<List<BadgeDto>>.Ok(MockBadges));
+        var badges = await _db.Badges
+            .Select(b => new BadgeDto
+            {
+                Id = b.Id, Name = b.Name, Description = b.Description,
+                Icon = b.Icon, Color = b.Color
+            })
+            .ToListAsync();
+        return Ok(ApiResponse<List<BadgeDto>>.Ok(badges));
     }
 
     [HttpGet("users/{userId}/badges")]
-    public IActionResult GetUserBadges(string userId)
+    public async Task<IActionResult> GetUserBadges(string userId)
     {
+        var allBadges = await _db.Badges.ToListAsync();
+        var earnedIds = await _db.UserBadges
+            .Where(ub => ub.UserId == userId)
+            .ToListAsync();
+
+        var earnedBadgeIds = earnedIds.Select(ub => ub.BadgeId).ToHashSet();
+
         var data = new UserBadgesDto
         {
-            Earned =
-            [
-                new() { Id = "bg1", Name = "7 Day Streak", Icon = "\ud83d\udd25", Color = "from-orange-400 to-rose-500", EarnedAt = "2026-04-15T00:00:00Z" },
-                new() { Id = "bg2", Name = "Early Bird", Icon = "\ud83c\udf05", Color = "from-amber-300 to-orange-500", EarnedAt = "2026-04-20T00:00:00Z" }
-            ],
-            Locked =
-            [
-                new() { Id = "bg3", Name = "Double Shift", Icon = "\u26a1", Color = "from-indigo-400 to-purple-600" },
-                new() { Id = "bg6", Name = "Social Butterfly", Icon = "\ud83e\udd1d", Color = "from-pink-400 to-rose-500" }
-            ]
+            Earned = allBadges.Where(b => earnedBadgeIds.Contains(b.Id)).Select(b => new EarnedBadgeDto
+            {
+                Id = b.Id, Name = b.Name, Icon = b.Icon, Color = b.Color,
+                EarnedAt = earnedIds.First(ub => ub.BadgeId == b.Id).AwardedAt.ToString("o")
+            }).ToList(),
+            Locked = allBadges.Where(b => !earnedBadgeIds.Contains(b.Id)).Select(b => new LockedBadgeDto
+            {
+                Id = b.Id, Name = b.Name, Icon = b.Icon, Color = b.Color
+            }).ToList()
         };
         return Ok(ApiResponse<UserBadgesDto>.Ok(data));
     }
 
     [HttpPost("users/{userId}/badges")]
-    public IActionResult AwardBadge(string userId, [FromBody] AwardBadgeRequest request)
+    public async Task<IActionResult> AwardBadge(string userId, [FromBody] AwardBadgeRequest request)
     {
+        var exists = await _db.UserBadges.AnyAsync(ub => ub.UserId == userId && ub.BadgeId == request.BadgeId);
+        if (exists) return Conflict(ApiResponse.Fail("ALREADY_AWARDED", "Badge already awarded."));
+
+        _db.UserBadges.Add(new Domain.Entities.UserBadge
+        {
+            UserId = userId,
+            BadgeId = request.BadgeId,
+            AwardedAt = DateTime.UtcNow
+        });
+        await _db.SaveChangesAsync();
         return Ok(ApiResponse.Ok(new { message = "Badge awarded successfully.", badgeId = request.BadgeId }));
     }
 }
+
