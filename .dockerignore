@@ -1,0 +1,10 @@
+**/.dockerignore
+**/.env
+**/.git
+**/.gitignore
+**/.vs
+**/bin
+**/obj
+**/Thumbs.db
+*.user
+*.suo

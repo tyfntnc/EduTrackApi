@@ -10,6 +10,10 @@ public partial class Program
     {
         var builder = WebApplication.CreateBuilder(args);
 
+        // Render provides PORT env variable
+        var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+        builder.WebHost.UseUrls($"http://+:{port}");
+
         // Add services to the container.
         builder.Services.AddControllers();
         builder.Services.AddEndpointsApiExplorer();
@@ -81,15 +85,12 @@ public partial class Program
 
         var app = builder.Build();
 
-        // Swagger middleware (UI dahil)
-        if (app.Environment.IsDevelopment())
+        // Swagger middleware
+        app.UseSwagger();
+        app.UseSwaggerUI(options =>
         {
-            app.UseSwagger();
-            app.UseSwaggerUI(options =>
-            {
-                options.SwaggerEndpoint("/swagger/v1/swagger.json", "EduTrack API V1");
-            });
-        }
+            options.SwaggerEndpoint("/swagger/v1/swagger.json", "EduTrack API V1");
+        });
 
         app.UseExceptionHandler(errorApp =>
         {
@@ -107,7 +108,8 @@ public partial class Program
 
         app.UseResponseCaching();
 
-        app.UseHttpsRedirection();
+        // Render handles HTTPS at the proxy level
+        // app.UseHttpsRedirection();
 
         app.UseAuthentication();
         app.UseAuthorization();
